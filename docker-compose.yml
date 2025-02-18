@@ -1,0 +1,84 @@
+services:
+  db:
+    container_name: db
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: test_task
+    ports:
+      - 13306:3306
+    volumes:
+      - ./docker/mysql:/var/lib/mysql
+    networks:
+      - symfony-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "symfony", "-p${MYSQL_ROOT_PASSWORD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: symfony
+      RABBITMQ_DEFAULT_PASS: symfony_password
+    ports:
+      - "5672:5672"   # AMQP protocol port
+      - "15672:15672" # Management interface port
+    volumes:
+      - ./docker/rabbitmq:/var/lib/rabbitmq:rw
+    networks:
+      - symfony-network
+    user: "999:999"
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_port_connectivity" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  php-fpm:
+    env_file:
+      - symfony/.env
+    container_name: php-fpm
+    build:
+      context: ./docker/php-fpm
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/test_task?serverVersion=8.0"
+    volumes:
+      - ./symfony/:/var/www
+    networks:
+      - symfony-network
+
+  nginx:
+    env_file:
+      - symfony/.env
+    container_name: nginx
+    build:
+      context: ./docker/nginx
+    volumes:
+      - ./symfony/:/var/www
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/sites/:/etc/nginx/sites-available
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d
+      - ./logs/nginx:/var/log/nginx
+    ports:
+      - "85:80"
+      - "446:443"
+    depends_on:
+      - php-fpm
+    networks:
+      - symfony-network
+
+networks:
+  symfony-network:
+    driver: bridge
