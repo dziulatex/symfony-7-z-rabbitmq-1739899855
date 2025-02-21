@@ -8,7 +8,7 @@ security:
     app_user_provider:
       entity:
         class: App\Entity\User
-        property: login
+        property: email
   firewalls:
     dev:
       pattern: ^/(_(profiler|wdt)|css|images|js)/
@@ -20,7 +20,9 @@ security:
         login_path: app_login
         check_path: app_login
         enable_csrf: true
-        default_target_path: manage_supply
+        default_target_path: file_upload_form
+        username_parameter: email
+        password_parameter: password
       logout:
         path: app_logout
         target: app_login
