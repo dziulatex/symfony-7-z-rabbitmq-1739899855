@@ -135,6 +135,7 @@
                                     <div class="btn-group">
                                         <button type="button" class="btn btn-sm btn-outline-primary js-parse-file-btn"
                                                 data-file-id="{{ file.id }}" data-file-state="{{ file.state.value }}"
+                                                data-file-error-message="{{ file.errorMessage }}"
                                                 data-csrf-token="{{ csrf_token('parse_file_' ~ file.id) }}"
                                                 {{ file.state.value not in ['new', 'error', 'waiting'] ? 'disabled' : '' }}>
                                             {% if file.state.value == 'new' %}
@@ -551,7 +552,7 @@
                 } else if (button.dataset.fileState === 'processing') {
                     startEventSource(button.dataset.fileId, button);
                 } else {
-                    updateButtonAndStatus(button, button.dataset.fileState);
+                    updateButtonAndStatus(button, button.dataset.fileState, 0, button.dataset.fileErrorMessage);
                 }
 
             });
