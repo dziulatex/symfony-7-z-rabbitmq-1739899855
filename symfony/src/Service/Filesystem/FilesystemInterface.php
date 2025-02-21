@@ -10,6 +10,16 @@ interface FilesystemInterface
     public const ACCESS_WRITE = 'w';
     public const ACCESS_EXECUTE = 'x';
 
+    public function buildFilePath(string $directory, string $filename, bool $unique = false): string;
+
+    /**
+     * Check if a file exists.
+     *
+     * @param string $path The path to the file.
+     * @return bool True if the file exists, false otherwise.
+     */
+    public function fileExists(string $path): bool;
+
     /**
      * Move a file from source to target path
      */
@@ -43,6 +53,8 @@ interface FilesystemInterface
      * @throws FileOperationException If the operation fails
      */
     public function getStream(string $path, string $mode = self::ACCESS_READ);
+
+    public function createFile(string $path, string $content, bool $generateUniquePath = false): string;
 
     /**
      * Delete a file

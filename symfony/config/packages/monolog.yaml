@@ -9,7 +9,7 @@ when@dev:
         type: rotating_file
         path: "%kernel.logs_dir%/%kernel.environment%.log"
         filename_format: '{filename}-{date}'
-        level: info
+        level: warning
         max_files: 7
       console:
         type: console

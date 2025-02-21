@@ -4,12 +4,14 @@ namespace App\CommandHandler;
 
 use App\Command\ParseFileCommand;
 use App\Entity\FileUpload;
+use App\Repository\FileUploadRepository;
 use App\Service\FileParser;
 use App\Service\FileProcessing\BatchProcessor;
 use App\Service\FileProcessing\ClientProcessor;
 use App\Service\FileProcessing\Exception\ProgressNotInitializedException;
 use App\Service\FileProcessing\FileProgressTracker;
 use App\Service\FileProcessing\FileValidator;
+use App\Service\Filesystem\FilesystemInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Psr\Log\LoggerInterface;
@@ -24,17 +26,17 @@ use function sprintf;
 class ParseFileCommandHandler
 {
     private ?LockInterface $lock = null;
-    private ?FileUpload $fileUpload = null;
 
     public function __construct(
         private readonly LockFactory $lockFactory,
         private readonly LoggerInterface $logger,
         private readonly FileParser $fileParser,
-        private readonly FileValidator $fileValidator,
         private readonly BatchProcessor $batchProcessor,
         private readonly ClientProcessor $clientProcessor,
         private readonly FileProgressTracker $progressTracker,
-        private readonly EntityManagerInterface $entityManager
+        private readonly FileUploadRepository $fileUploadRepository,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly FilesystemInterface $filesystem,
     ) {
     }
 
@@ -51,20 +53,32 @@ class ParseFileCommandHandler
             }
 
             $this->logger->info(sprintf('Lock acquired for file ID: %s', $fileId));
-
-            $this->fileUpload = $this->fileValidator->validateAndGetFileUploadEntity($fileId);
-            $filePath = $this->fileUpload->getFullPath();
+            $pathArray = $this->fileUploadRepository->getFilePathFromEntity($fileId);
+            $errorFilePath = $pathArray['path'] . '/error/' . $pathArray['fileName'];
+            if ($this->filesystem->fileExists($errorFilePath)) {
+                $this->filesystem->deleteFile($errorFilePath);
+            } else {
+                $this->filesystem->createFile($errorFilePath, '', true);
+            }
+            $filePath = $pathArray['path'] . '/' . $pathArray['fileName'];
             $rowCounter = $this->fileParser->getLineCount($filePath);
-            $this->fileUpload->markAsProcessing();
+            $fileUpload = $this->fileUploadRepository->find($fileId);
+            $fileUpload->markAsProcessing();
+            $this->entityManager->flush();
             $this->progressTracker->initializeProgress($fileId, $rowCounter - 1); // Subtract header row
             if ($this->batchProcessor->needsBatchProcessing($rowCounter)) {
-                $this->entityManager->flush();
                 $this->batchProcessor->processBatches($command, $rowCounter);
             } else {
-                $this->clientProcessor->processClients($rowCounter, $filePath, $fileId, 0, 0);
+                $this->clientProcessor->processClients(
+                    $rowCounter,
+                    $pathArray['path'],
+                    $pathArray['fileName'],
+                    $fileId,
+                    0,
+                    0
+                );
                 $this->progressTracker->cleanupProgress($fileId);
             }
-            $this->entityManager->flush();
         } catch (Exception $e) {
             if (!$e instanceof ProgressNotInitializedException) {
                 $this->progressTracker->markError($fileId, $e->getMessage());

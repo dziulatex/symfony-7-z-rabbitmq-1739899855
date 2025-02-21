@@ -3,8 +3,12 @@
 namespace App\Repository;
 
 use App\Entity\Client;
+use App\Entity\FileUpload;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\ORM\Query;
+
+// Import for partial hydration
 
 /**
  * @extends ServiceEntityRepository<Client>
@@ -21,28 +25,42 @@ class ClientRepository extends ServiceEntityRepository
         parent::__construct($registry, Client::class);
     }
 
-//    /**
-//     * @return Client[] Returns an array of Client objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('c')
-//            ->andWhere('c.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('c.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    /**
+     * @param FileUpload|null $fileUpload
+     * @param int $page
+     * @param int $limit
+     * @return array{clients: Client[], totalCount: int}
+     */
+    public function findClientsPaginated(?FileUpload $fileUpload, int $page, int $limit): array
+    {
+        $offset = ($page - 1) * $limit;
 
-//    public function findOneBySomeField($value): ?Client
-//    {
-//        return $this->createQueryBuilder('c')
-//            ->andWhere('c.someField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        $qb = $this->createQueryBuilder('c');
+
+        if ($fileUpload) {
+            $qb->andWhere('c.fileUpload = :fileUpload')
+                ->setParameter(
+                    'fileUpload',
+                    $fileUpload->getId()->toBinary()
+                );
+        }
+
+        $qb->orderBy('c.fullName', 'ASC');
+
+
+        // Separate query for total count (no hydration needed)
+        $countQb = clone $qb;
+        $totalCount = (int)$countQb->select('COUNT(c.id)')->getQuery()->getSingleScalarResult();
+
+        // Get paginated results
+        $clients = $qb->setFirstResult($offset)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult(); // Get the actual Client objects
+
+        return [
+            'clients' => $clients,
+            'totalCount' => $totalCount,
+        ];
+    }
 }

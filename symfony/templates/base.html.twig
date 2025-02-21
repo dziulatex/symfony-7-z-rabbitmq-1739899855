@@ -21,14 +21,17 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav">
-                <li class="nav-item">
+                <li class="nav-item {% if app.request.attributes.get('_route') == 'file_upload_form' %}active{% endif %}">
                     <a class="nav-link" href="{{ path('file_upload_form') }}">Upload</a>
                 </li>
-                <li class="nav-item">
+                <li class="nav-item {% if app.request.attributes.get('_route') == 'upload_from_url_form' %}active{% endif %}">
                     <a class="nav-link" href="{{ path('upload_from_url_form') }}">Upload from URL</a>
                 </li>
-                <li class="nav-item">
+                <li class="nav-item {% if app.request.attributes.get('_route') == 'file_list_form' %}active{% endif %}">
                     <a class="nav-link" href="{{ path('file_list_form') }}">File List</a>
+                </li>
+                <li class="nav-item {% if app.request.attributes.get('_route') == 'app_clients_list' %}active{% endif %}">
+                    <a class="nav-link" href="{{ path('app_clients_list') }}">Client List</a>
                 </li>
             </ul>
         </div>

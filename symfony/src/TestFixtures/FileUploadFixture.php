@@ -74,7 +74,7 @@ class FileUploadFixture extends Fixture implements FixtureGroupInterface
 
     private function createCsvFile(string $filePath, int $rowCount): void
     {
-        $handle = fopen($filePath, 'w');
+        $handle = fopen($filePath, 'wb');
         if ($handle === false) {
             throw new RuntimeException(sprintf('Could not create file: %s', $filePath));
         }

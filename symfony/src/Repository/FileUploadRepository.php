@@ -5,9 +5,14 @@ namespace App\Repository;
 use App\Entity\FileUpload;
 use DateTime;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
+
+
+use RuntimeException;
+use Symfony\Component\Uid\Uuid;
 
 use function count;
 use function ceil;
@@ -25,6 +30,27 @@ class FileUploadRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, FileUpload::class);
+    }
+
+    public function getFilePathFromEntity(Uuid $fileId): array
+    {
+        $query = $this->getEntityManager()->createQuery(
+            'SELECT f.path, f.filename
+         FROM App\Entity\FileUpload f
+         WHERE f.id = :fileId'
+        );
+        $query->setParameter('fileId', $fileId->toBinary());
+        $result = $query->getSingleResult(AbstractQuery::HYDRATE_ARRAY);  // Use HYDRATE_ARRAY for a simple array result
+
+        if (!$result) {
+            throw new RuntimeException("File with ID $fileId not found."); // Or handle however you prefer
+        }
+
+
+        return [
+            'path' => $result['path'],
+            'fileName' => $result['filename'],
+        ];
     }
 
     /**
@@ -174,7 +200,7 @@ class FileUploadRepository extends ServiceEntityRepository
 
         if ($startDate) {
             $start = new DateTime($startDate);
-            $start->setTime(0, 0, 0);
+            $start->setTime(0, 0);
             $queryBuilder
                 ->andWhere('f.uploadedAt >= :startDate')
                 ->setParameter('startDate', $start);

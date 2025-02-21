@@ -16,6 +16,39 @@ class LocalFilesystem implements FilesystemInterface
     ) {
     }
 
+    /**
+     * Constructs a file path from the given directory, filename, and extension.
+     *
+     * @param string $directory The directory.
+     * @param string $filename The filename (without extension).
+     * @param bool $unique Whether to generate a unique file path.
+     *
+     * @return string The full file path.
+     *
+     */
+    public function buildFilePath(string $directory, string $filename, bool $unique = false): string
+    {
+        // Add '/' only if it's not already at the end of the directory
+        if (!str_ends_with($directory, '/')) {
+            $directory .= '/';
+        }
+
+        $filePath = $directory . $filename;
+
+        if ($unique) {
+            // Ensure directory exists and is writable ONLY if we need to check for uniqueness.
+            $this->ensureDirectoryExists($directory);
+            $filePath = $this->generateUniqueFilePath($directory, $filename);
+        }
+
+        return $filePath;
+    }
+
+    public function fileExists(string $path): bool
+    {
+        return file_exists($path);
+    }
+
     public function moveFile(string $sourcePath, string $targetPath): void
     {
         if (!$this->isAccessible($sourcePath)) {
@@ -49,6 +82,55 @@ class LocalFilesystem implements FilesystemInterface
         if (!$this->isAccessible($targetPath)) {
             throw new FileOperationException(sprintf('Failed to move file to "%s"', $targetPath));
         }
+    }
+
+    /**
+     * Creates a new file with the given content.
+     *
+     * @param string $path The path where the file should be created.
+     * @param string $content The content to write to the file.
+     * @param bool $generateUniquePath Whether to generate a unique file path if file exist.
+     *
+     * @return string The actual path of the created file (useful if $generateUniquePath is true).
+     *
+     * @throws FileOperationException If the directory cannot be created or the file cannot be written.
+     */
+    public function createFile(string $path, string $content, bool $generateUniquePath = false): string
+    {
+        // Ensure target directory exists
+        $this->ensureDirectoryExists(dirname($path));
+
+        $finalPath = $path;
+        if ($generateUniquePath && file_exists($path)) {
+            $pathInfo = pathinfo($path);
+            $i = 1;
+            // Handle cases where pathInfo might not have all the keys, e.g. a file without an extension.
+            $dirname = $pathInfo['dirname'] ?? '';
+            $filename = $pathInfo['filename'] ?? '';
+            $extension = $pathInfo['extension'] ?? '';
+            do {
+                // Build final path using available info.
+                $finalPath = sprintf(
+                    '%s/%s_%d%s',
+                    $dirname,
+                    $filename,
+                    $i++,
+                    $extension ? '.' . $extension : '' // Only add . if extension exists.
+                );
+            } while (file_exists($finalPath));
+        }
+
+        // Attempt to write to the file.
+        if (@file_put_contents($finalPath, $content) === false) {
+            throw new FileOperationException(sprintf('Failed to create or write to file at "%s"', $finalPath));
+        }
+
+        // Double-check if the file exists after the operation.
+        if (!$this->fileExists($finalPath)) {
+            throw new FileOperationException(sprintf('File creation failed at "%s"', $finalPath));
+        }
+
+        return $finalPath;
     }
 
     public function isAccessible(string $path, string|array $mode = self::ACCESS_READ): bool
@@ -148,6 +230,20 @@ class LocalFilesystem implements FilesystemInterface
         if (file_exists($path)) {
             throw new FileOperationException(sprintf('Failed to delete file "%s"', $path));
         }
+    }
+
+    /**
+     * Generates a unique file path, checking for existing files.
+     */
+    private function generateUniqueFilePath(string $directory, string $filename): string
+    {
+        $i = 1;
+        do {
+            $newFilename = sprintf('%s_%d', $filename, $i++);
+            $newFilePath = $directory . '/' . $newFilename;
+        } while (file_exists($newFilePath));
+
+        return $newFilePath;
     }
 
     /**
