@@ -75,7 +75,7 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/test.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 0));
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'test.csv', 0, 0));
 
         self::assertCount(2, $clients);
         self::assertEquals('John Doe', $clients[0]->getFullName());
@@ -92,7 +92,7 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/test.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 4, 0));
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'test.csv', 4, 0));
         self::assertCount(1, $clients);
         self::assertEquals('Bob Wilson', $clients[0]->getFullName());
     }
@@ -108,7 +108,7 @@ class FileParserTest extends KernelTestCase
         $this->expectException(FileException::class);
         $this->expectExceptionMessage('CSV header does not match expected format');
 
-        iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 0));
+        iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'invalid.csv', 0, 0));
     }
 
     public function testParseCsvFileWithInvalidStartLine(): void
@@ -117,7 +117,7 @@ class FileParserTest extends KernelTestCase
         file_put_contents($filePath, "ID,Full name,E-mail,City\n1,John,john@test.com,NYC\n");
 
         $this->expectException(InvalidArgumentException::class);
-        iterator_to_array($this->fileParser->parseCsvFile($filePath, 1, 0));
+        iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'test.csv', 1, 0));
     }
 
     public function testParseCsvFileWithInvalidEndLine(): void
@@ -126,7 +126,7 @@ class FileParserTest extends KernelTestCase
         file_put_contents($filePath, "ID,Full name,E-mail,City\n1,John,john@test.com,NYC\n");
 
         $this->expectException(InvalidArgumentException::class);
-        iterator_to_array($this->fileParser->parseCsvFile($filePath, 2, 1));
+        iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'test.csv', 2, 1));
     }
 
     public function testHeaderIsFalse(): void
@@ -137,7 +137,7 @@ class FileParserTest extends KernelTestCase
         $this->expectException(FileException::class);
         $this->expectExceptionMessage('Could not read header row from CSV file');
 
-        iterator_to_array($this->fileParser->parseCsvFile($emptyFile, 0, 0));
+        iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'empty.csv', 0, 0));
     }
 
     public function testEndLineBreak(): void
@@ -150,7 +150,7 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/endline.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 3));
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'endline.csv', 0, 3));
         self::assertCount(2, $clients);
         self::assertEquals('John Doe', $clients[0]->getFullName());
         self::assertEquals('Jane Smith', $clients[1]->getFullName());
@@ -166,11 +166,14 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/invalid_length.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 0));
-
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'invalid_length.csv', 0, 0));
+        $validClients = array_filter($clients, static function ($client) {
+            return !$client->isInvalid();
+        });
         // Only valid row should be processed
-        self::assertCount(1, $clients);
-        self::assertEquals('Jane Smith', $clients[0]->getFullName());
+        self::assertCount(1, $validClients);
+        //array filter makes the integer keys be string xD
+        self::assertEquals('Jane Smith', $validClients[array_key_first($validClients)]->getFullName());
     }
 
     public function testInvalidIdFormat(): void
@@ -182,11 +185,14 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/invalid_id.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 0));
-
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'invalid_id.csv', 0, 0));
+        $validClients = array_filter($clients, static function ($client) {
+            return !$client->isInvalid();
+        });
         // Only valid row should be processed
-        self::assertCount(1, $clients);
-        self::assertEquals('Jane Smith', $clients[0]->getFullName());
+        self::assertCount(1, $validClients);
+        //array filter makes the integer keys be string xD
+        self::assertEquals('Jane Smith', $validClients[array_key_first($validClients)]->getFullName());
     }
 
     public function testInvalidIntegerFormat(): void
@@ -198,11 +204,14 @@ class FileParserTest extends KernelTestCase
         $filePath = $this->tempDir . '/invalid_integer.csv';
         file_put_contents($filePath, $csvContent);
 
-        $clients = iterator_to_array($this->fileParser->parseCsvFile($filePath, 0, 0));
-
+        $clients = iterator_to_array($this->fileParser->parseCsvFile($this->tempDir, 'invalid_integer.csv', 0, 0));
+        $validClients = array_filter($clients, static function ($client) {
+            return !$client->isInvalid();
+        });
         // Only valid row should be processed
-        self::assertCount(1, $clients);
-        self::assertEquals('Jane Smith', $clients[0]->getFullName());
+        self::assertCount(1, $validClients);
+        //array filter makes the integer keys be string xD
+        self::assertEquals('Jane Smith', $validClients[array_key_first($validClients)]->getFullName());
     }
 
     public function testFileException(): void
@@ -216,8 +225,7 @@ class FileParserTest extends KernelTestCase
 
         $this->expectException(FileException::class);
         $this->expectExceptionMessage('Error parsing CSV file');
-
-        iterator_to_array($parser->parseCsvFile('test.csv', 0, 0));
+        iterator_to_array($parser->parseCsvFile($this->tempDir, 'test.csv', 0, 0));
     }
 
     public function testGenericExceptionWrapping(): void
@@ -232,6 +240,6 @@ class FileParserTest extends KernelTestCase
         $this->expectException(FileException::class);
         $this->expectExceptionMessage('Error parsing CSV file');
 
-        iterator_to_array($parser->parseCsvFile('test.csv', 0, 0));
+        iterator_to_array($parser->parseCsvFile($this->tempDir, 'test.csv', 0, 0));
     }
 }
