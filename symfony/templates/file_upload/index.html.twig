@@ -1,0 +1,20 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Upload pliku{% endblock %}
+
+{% block body %}
+    <div class="container mt-5">
+        <h1>Upload pliku</h1>
+
+        {% for message in app.flashes('success') %}
+            <div class="alert alert-success">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        {{ form_start(form) }}
+        {{ form_widget(form) }}
+        <button type="submit" class="btn btn-primary">Prześlij</button>
+        {{ form_end(form) }}
+    </div>
+{% endblock %}

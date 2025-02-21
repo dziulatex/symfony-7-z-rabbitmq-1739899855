@@ -1,0 +1,3 @@
+parameters:
+  batchProcessorRowLimit: 2
+  uploadsDirectory: '%kernel.project_dir%/var/test/uploads'
