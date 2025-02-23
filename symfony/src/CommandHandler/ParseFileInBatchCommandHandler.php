@@ -4,6 +4,7 @@ namespace App\CommandHandler;
 
 use App\Command\ParseFileInBatchCommand;
 use App\Entity\FileUpload;
+use App\Repository\FileUploadRepository;
 use App\Service\FileProcessing\ClientProcessor;
 use App\Service\FileProcessing\Exception\ProgressNotInitializedException;
 use App\Service\FileProcessing\FileProgressTracker;
@@ -23,12 +24,11 @@ use function sprintf;
 class ParseFileInBatchCommandHandler
 {
     private ?LockInterface $lock = null;
-    private ?FileUpload $fileUpload = null;
 
     public function __construct(
         private readonly LockFactory $lockFactory,
         private readonly LoggerInterface $logger,
-        private readonly FileValidator $fileValidator,
+        private readonly FileUploadRepository $fileUploadRepository,
         private readonly ClientProcessor $clientProcessor,
         private readonly FileProgressTracker $progressTracker,
         private readonly EntityManagerInterface $entityManager
@@ -48,12 +48,11 @@ class ParseFileInBatchCommandHandler
             }
 
             $this->logger->info(sprintf('Lock acquired for file ID: %s', $fileId));
-
-            $this->fileUpload = $this->fileValidator->validateAndGetFileUploadEntity($fileId);
-            $filePath = $this->fileUpload->getFullPath();
+            $pathArray = $this->fileUploadRepository->getFilePathFromEntity($fileId);
             $this->clientProcessor->processClients(
                 $command->getTotalRows(),
-                $filePath,
+                $pathArray['path'],
+                $pathArray['fileName'],
                 $fileId,
                 $command->getStartLine(),
                 $command->getEndLine()

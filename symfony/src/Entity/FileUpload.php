@@ -5,6 +5,8 @@ namespace App\Entity;
 use App\Repository\FileUploadRepository;
 use App\Service\FileProcessing\FileProcessingStatus;
 use DateTime;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use LogicException;
 use Symfony\Component\Uid\Uuid;
@@ -33,8 +35,16 @@ class FileUpload
 
     #[ORM\Column(type: 'string', enumType: FileProcessingStatus::class)]
     private FileProcessingStatus $state;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $errorMessage;
+
+    /**
+     * @var Collection<int, Client>
+     */
+    #[ORM\OneToMany(targetEntity: Client::class, mappedBy: 'fileUpload', cascade: ['persist'], orphanRemoval: true)]
+    private Collection $clients; //  Collection of Client entities.
+
 
     public function __construct(
         string $extension,
@@ -46,8 +56,10 @@ class FileUpload
         $this->path = $this->generatePath($baseDirectory);
         $this->md5Hash = null;
         $this->state = FileProcessingStatus::NEW;
+        $this->clients = new ArrayCollection(); // Initialize the collection
     }
 
+    // ... (rest of your existing FileUpload methods) ...
     public function generateMd5()
     {
         $fullPath = $this->getFullPath();
@@ -170,5 +182,35 @@ class FileUpload
     public function isProcessing(): bool
     {
         return $this->state === FileProcessingStatus::PROCESSING;
+    }
+
+    /**
+     * @return Collection<int, Client>
+     */
+    public function getClients(): Collection
+    {
+        return $this->clients;
+    }
+
+    public function addClient(Client $client): self
+    {
+        if (!$this->clients->contains($client)) {
+            $this->clients->add($client);
+            $client->setFileUpload($this);
+        }
+
+        return $this;
+    }
+
+    public function removeClient(Client $client): self
+    {
+        if ($this->clients->removeElement($client)) {
+            // set the owning side to null (unless already changed)
+            if ($client->getFileUpload() === $this) {
+                $client->setFileUpload(null);
+            }
+        }
+
+        return $this;
     }
 }

@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Redis;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Symfony\Component\Uid\Uuid;
 use Throwable;
 
 use function count;
@@ -117,7 +118,7 @@ class FileProgressTracker
 
     public function markError(string $fileId, string $errorMessage): void
     {
-        $fileUpload = $this->fileUploadRepository->find($fileId);
+        $fileUpload = $this->fileUploadRepository->find(Uuid::fromString($fileId));
         if ($fileUpload) {
             $fileUpload->markAsError($errorMessage);
             $this->entityManager->flush();

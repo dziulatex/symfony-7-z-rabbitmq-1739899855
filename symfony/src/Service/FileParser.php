@@ -61,19 +61,14 @@ class FileParser
         }
     }
 
-    /**
-     * @param string $filePath
-     * @param int $startLine Start from line number (0 means start from beginning after header)
-     * @param int $endLine End at line number (0 means process until end of file)
-     * @return Generator<Client>
-     */
-    private function parseCsvFileGenerator(string $filePath, int $startLine, int $endLine): Generator
+    private function parseCsvFileGenerator(string $directory, string $fileName, int $startLine, int $endLine): Generator
     {
         // Validate startLine if it's not 0
         if ($startLine !== 0 && $startLine < 2) {
             throw new InvalidArgumentException('startLine must be greater than 1 as line 1 is the header');
         }
-
+        $errorFilePath = $directory . '/error/' . $fileName;
+        $filePath = $directory . '/' . $fileName;
         // Validate endLine against startLine if endLine is not 0
         if ($endLine !== 0) {
             $effectiveStartLine = ($startLine === 0) ? 2 : $startLine;
@@ -122,42 +117,54 @@ class FileParser
                 }
 
                 if (count($row) !== 4) {
-                    $this->logger->info(
-                        sprintf(
-                            'Invalid row length in CSV file "%s" at row %d. Expected 4 columns, got %d. Data: "%s"',
-                            $filePath,
-                            $rowNumber,
-                            count($row),
-                            implode(',', $row)
-                        )
+                    $errorMsg = sprintf(
+                        'Invalid row length in CSV file "%s" at row %d. Expected 4 columns, got %d. Data: "%s"',
+                        $filePath,
+                        $rowNumber,
+                        count($row),
+                        implode(',', $row)
                     );
+                    $this->logger->info($errorMsg);
+                    $this->logError($errorFilePath, $errorMsg); // Log to file
+                    $client = new Client(100);
+                    //dirty trick because have no time but counting was broken if we didnt pass client variable outside.
+                    $client->setInvalid();
+                    yield $client;
                     continue;
                 }
 
                 [$id, $fullName, $email, $city] = $row;
 
                 if (!is_numeric($id)) {
-                    $this->logger->info(
-                        sprintf(
-                            'Invalid ID format in CSV file "%s" at row %d. ID is not numeric. Data: "%s"',
-                            $filePath,
-                            $rowNumber,
-                            implode(',', $row)
-                        )
+                    $errorMsg = sprintf(
+                        'Invalid ID format in CSV file "%s" at row %d. ID is not numeric. Data: "%s"',
+                        $filePath,
+                        $rowNumber,
+                        implode(',', $row)
                     );
+                    $this->logger->info($errorMsg);
+                    $this->logError($errorFilePath, $errorMsg);
+                    $client = new Client(100);
+                    //dirty trick because have no time but counting was broken if we didnt pass client variable outside.
+                    $client->setInvalid();
+                    yield $client;
                     continue;
                 }
 
                 if (!ctype_digit($id)) { // Check if $id is a string of digits (representing an integer)
-                    $this->logger->info(
-                        sprintf(
-                            'Invalid Integer format in CSV file "%s" at row %d. ID is not a valid Integer: "%s". Data: "%s"',
-                            $filePath,
-                            $rowNumber,
-                            $id,
-                            implode(',', $row)
-                        )
+                    $errorMsg = sprintf(
+                        'Invalid Integer format in CSV file "%s" at row %d. ID is not a valid Integer: "%s". Data: "%s"',
+                        $filePath,
+                        $rowNumber,
+                        $id,
+                        implode(',', $row)
                     );
+                    $this->logger->info($errorMsg);
+                    $this->logError($errorFilePath, $errorMsg);
+                    $client = new Client(100);
+                    //dirty trick because have no time but counting was broken if we didnt pass client variable outside.
+                    $client->setInvalid();
+                    yield $client;
                     continue;
                 }
 
@@ -180,14 +187,61 @@ class FileParser
         }
     }
 
+    private function logError(string $errorFilePath, string $errorMessage): void
+    {
+        $errorStream = null;
+        try {
+            $errorStream = fopen($errorFilePath, 'ab'); // Open in append mode
+            if ($errorStream === false) {
+                $this->logger->error(sprintf('Could not open error file for appending: "%s"', $errorFilePath));
+                return; // Exit if we can't open the file
+            }
+
+            // Attempt to acquire an exclusive lock.  Wait up to 5 seconds.
+            $lockAcquired = flock($errorStream, LOCK_EX | LOCK_NB, $wouldBlock);
+            $startTime = time();
+            while (!$lockAcquired && (time() - $startTime) < 5) {
+                if ($wouldBlock) {
+                    usleep(250000);  // Wait 250ms (0.25 seconds) and try again
+                    $lockAcquired = flock($errorStream, LOCK_EX | LOCK_NB, $wouldBlock);
+                } else {
+                    $this->logger->error(
+                        sprintf(
+                            'Could not acquire lock on error file (non-blocking check failed): "%s"',
+                            $errorFilePath
+                        )
+                    );
+                    return; // Exit if we can't get the lock non-blockingly
+                }
+            }
+
+
+            if ($lockAcquired) {
+                fwrite($errorStream, $errorMessage . PHP_EOL);
+                flock($errorStream, LOCK_UN); // Always release the lock!
+            } else {
+                $this->logger->error(sprintf('Failed to acquire file lock after 5 seconds for: "%s"', $errorFilePath));
+            }
+        } catch (Exception $e) {
+            $this->logger->error(
+                sprintf('Exception while writing to error file "%s": %s', $errorFilePath, $e->getMessage())
+            );
+        } finally {
+            if (is_resource($errorStream)) {
+                fclose($errorStream);
+            }
+        }
+    }
+
     /**
-     * @param string $filePath
+     * @param string $directory
+     * @param string $fileName
      * @param int $startLine
      * @param int $endLine
      * @return Generator<Client>
      */
-    public function parseCsvFile(string $filePath, int $startLine, int $endLine): Generator
+    public function parseCsvFile(string $directory, string $fileName, int $startLine, int $endLine): Generator
     {
-        return $this->parseCsvFileGenerator($filePath, $startLine, $endLine);
+        return $this->parseCsvFileGenerator($directory, $fileName, $startLine, $endLine);
     }
 }

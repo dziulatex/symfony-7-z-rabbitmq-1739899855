@@ -18,7 +18,7 @@ use function count;
 
 class FileController extends AbstractController
 {
-    private const ITEMS_PER_PAGE = 1; // Define items per page constant
+    private const ITEMS_PER_PAGE = 10; // Define items per page constant
 
     public function __construct(
         private readonly FileUploader $fileUploader,

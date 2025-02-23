@@ -4,13 +4,8 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * Client entity representing customer data.
- *
- * This example uses PHP 8+ attributes for Doctrine ORM mapping.
- */
 #[ORM\Entity]
-#[ORM\Table(name: 'clients')] // Optional: Customize table name if needed
+#[ORM\Table(name: 'clients')]
 class Client
 {
     #[ORM\Id]
@@ -26,9 +21,12 @@ class Client
     #[ORM\Column(type: 'string', length: 255)]
     private ?string $city = null;
 
-    /**
-     * @param int $id
-     */
+    #[ORM\ManyToOne(targetEntity: FileUpload::class, inversedBy: 'clients')]
+    #[ORM\JoinColumn(name: 'file_upload_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')] // Added JoinColumn
+    private ?FileUpload $fileUpload;
+
+    private bool $invalid = false;
+
     public function __construct(int $id)
     {
         $this->id = $id;
@@ -39,6 +37,15 @@ class Client
         return $this->id;
     }
 
+    public function setInvalid()
+    {
+        $this->invalid = true;
+    }
+
+    public function isInvalid(): bool
+    {
+        return $this->invalid;
+    }
 
     public function getFullName(): ?string
     {
@@ -71,6 +78,18 @@ class Client
     public function setCity(?string $city): self
     {
         $this->city = $city;
+        return $this;
+    }
+
+    public function getFileUpload(): ?FileUpload
+    {
+        return $this->fileUpload;
+    }
+
+    public function setFileUpload(?FileUpload $fileUpload): self
+    {
+        $this->fileUpload = $fileUpload;
+
         return $this;
     }
 }

@@ -5,36 +5,31 @@ namespace App\Service\FileProcessing;
 use App\Entity\FileUpload;
 use App\Repository\FileUploadRepository;
 use App\Service\Filesystem\FilesystemInterface;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\NonUniqueResultException;
+use Doctrine\ORM\NoResultException;
 use RuntimeException;
+
+use Symfony\Component\Uid\Uuid;
 
 use function sprintf;
 
 class FileValidator
 {
     public function __construct(
-        private readonly FileUploadRepository $fileUploadRepository,
-        private readonly FilesystemInterface $filesystem
+        private readonly EntityManagerInterface $entityManager,
     ) {
     }
 
-    public function validateAndGetFileUploadEntity(string $fileId): FileUpload
+    public function getFilePathFromEntity(string $fileId): string
     {
-        $fileUpload = $this->fileUploadRepository->find($fileId);
+        $query = $this->entityManager->createQuery(
+            'SELECT CONCAT(f.path, \'/\', f.filename) AS fullPath
+             FROM App\Entity\FileUpload f
+             WHERE f.id = :fileId'
+        );
+        $query->setParameter('fileId', Uuid::fromString($fileId));
 
-        if (!$fileUpload instanceof FileUpload) {
-            throw new RuntimeException(sprintf('FileUpload entity not found for file ID: %s', $fileId));
-        }
-
-        if (!$this->filesystem->isAccessible($fileUpload->getFullPath())) {
-            throw new RuntimeException(
-                sprintf(
-                    'File path "%s" from FileUpload ID: %s is not accessible.',
-                    $fileUpload->getFullPath(),
-                    $fileId
-                )
-            );
-        }
-
-        return $fileUpload;
+        return $query->getSingleScalarResult();
     }
 }

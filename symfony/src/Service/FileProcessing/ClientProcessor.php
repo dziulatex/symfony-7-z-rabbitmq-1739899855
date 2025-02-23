@@ -3,11 +3,14 @@
 namespace App\Service\FileProcessing;
 
 use App\Entity\Client;
+use App\Entity\FileUpload;
 use App\Repository\ClientRepository;
 use App\Service\FileParser;
 use App\Service\FileProcessing\Exception\ProgressNotInitializedException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
+
+use Symfony\Component\Uid\Uuid;
 
 use function sprintf;
 
@@ -26,7 +29,8 @@ class ClientProcessor
 
     public function processClients(
         int $rowAmount,
-        string $filePath,
+        string $directory,
+        string $fileName,
         string $fileId,
         int $startLine,
         int $endLine,
@@ -37,7 +41,7 @@ class ClientProcessor
             );
         }
 
-        $clients = $this->fileParser->parseCsvFile($filePath, $startLine, $endLine);
+        $clients = $this->fileParser->parseCsvFile($directory, $fileName, $startLine, $endLine);
         $parsedClientCount = 0;
         $updatedClientCount = 0;
         $newClientCount = 0;
@@ -47,7 +51,7 @@ class ClientProcessor
 
         foreach ($clients as $client) {
             $parsedClientCount++;
-            $this->processClient($client, $updatedClientCount, $newClientCount);
+            $this->processClient($client, $updatedClientCount, $newClientCount, $fileId);
 
             // Check if we need to flush DB
             if (($parsedClientCount % self::DB_FLUSH_SIZE) === 0) {
@@ -75,16 +79,22 @@ class ClientProcessor
         $this->logProcessingResults($fileId, $parsedClientCount, $updatedClientCount, $newClientCount);
     }
 
-    private function processClient(Client $client, int &$updatedClientCount, int &$newClientCount): void
+    private function processClient(Client $client, int &$updatedClientCount, int &$newClientCount, string $fileId): void
     {
+        if ($client->isInvalid()) {
+            return;
+        }
+        $ref = $this->entityManager->getReference(FileUpload::class, Uuid::fromString($fileId));
         $existingClient = $this->clientRepository->find($client->getId());
         if ($existingClient instanceof Client) {
             $existingClient->setFullName($client->getFullName());
             $existingClient->setEmail($client->getEmail());
             $existingClient->setCity($client->getCity());
+            $existingClient->setFileUpload($ref);
             $this->entityManager->persist($existingClient);
             $updatedClientCount++;
         } else {
+            $client->setFileUpload($ref);
             $this->entityManager->persist($client);
             $newClientCount++;
         }
